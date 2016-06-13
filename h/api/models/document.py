@@ -273,7 +273,6 @@ def get_or_create_document_meta(session,
                                 document,
                                 created,
                                 updated):
-
     def get_existing_document_meta():
         return session.query(DocumentMeta).filter(
             DocumentMeta.claimant_normalized == uri_normalize(claimant),
@@ -284,17 +283,16 @@ def get_or_create_document_meta(session,
     if document_meta:
         return document_meta
 
-    # There wasn't an existing DocumentMeta in the db, so create a new one.
-    document_meta = DocumentMeta(claimant=claimant,
-                                 type=type,
-                                 value=value,
-                                 document=document,
-                                 created=created,
-                                 updated=updated,
-                                 )
-
     session.begin_nested()
     try:
+        # There wasn't an existing DocumentMeta in the db, so create a new one.
+        document_meta = DocumentMeta(claimant=claimant,
+                                    type=type,
+                                    value=value,
+                                    document=document,
+                                    created=created,
+                                    updated=updated,
+                                    )
         session.add(document_meta)
         session.commit()
     except sa.exc.IntegrityError:
