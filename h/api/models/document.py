@@ -283,22 +283,20 @@ def get_or_create_document_meta(session,
     if document_meta:
         return document_meta
 
-    session.begin_nested()
+    # There wasn't an existing DocumentMeta in the db, so create a new one.
     try:
-        # There wasn't an existing DocumentMeta in the db, so create a new one.
-        document_meta = DocumentMeta(claimant=claimant,
-                                    type=type,
-                                    value=value,
-                                    document=document,
-                                    created=created,
-                                    updated=updated,
-                                    )
-        session.add(document_meta)
-        session.commit()
+        with session.begin_nested():
+            document_meta = DocumentMeta(claimant=claimant,
+                                         type=type,
+                                         value=value,
+                                         document=document,
+                                         created=created,
+                                         updated=updated,
+                                         )
+            session.add(document_meta)
     except sa.exc.IntegrityError:
         # It looks like a concurrent request added an equivalent DocumentMeta
         # before we could save ours.
-        session.rollback()
         document_meta = get_existing_document_meta()
         assert document_meta
 
