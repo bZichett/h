@@ -266,6 +266,47 @@ def create_or_update_document_uri(session,
     docuri.updated = updated
 
 
+def get_or_create_document_meta(session,
+                                claimant,
+                                type,
+                                value,
+                                document,
+                                created,
+                                updated):
+
+    def get_existing_document_meta():
+        return session.query(DocumentMeta).filter(
+            DocumentMeta.claimant_normalized == uri_normalize(claimant),
+            DocumentMeta.type == type).one_or_none()
+
+    document_meta = get_existing_document_meta()
+
+    if document_meta:
+        return document_meta
+
+    # There wasn't an existing DocumentMeta in the db, so create a new one.
+    document_meta = DocumentMeta(claimant=claimant,
+                                 type=type,
+                                 value=value,
+                                 document=document,
+                                 created=created,
+                                 updated=updated,
+                                 )
+
+    session.begin_nested()
+    try:
+        session.add(document_meta)
+        session.commit()
+    except sa.exc.IntegrityError:
+        # It looks like a concurrent request added an equivalent DocumentMeta
+        # before we could save ours.
+        session.rollback()
+        document_meta = get_existing_document_meta()
+        assert document_meta
+
+    return document_meta
+
+
 def create_or_update_document_meta(session,
                                    claimant,
                                    type,
@@ -313,26 +354,20 @@ def create_or_update_document_meta(session,
     :type updated: datetime.datetime
 
     """
-    existing_dm = session.query(DocumentMeta).filter(
-        DocumentMeta.claimant_normalized == uri_normalize(claimant),
-        DocumentMeta.type == type).one_or_none()
+    document_meta = get_or_create_document_meta(
+        session, claimant, type, value, document, created, updated)
 
-    if existing_dm is None:
-        session.add(DocumentMeta(
-                    claimant=claimant,
-                    type=type,
-                    value=value,
-                    document=document,
-                    created=created,
-                    updated=updated,
-                    ))
-    else:
-        existing_dm.value = value
-        existing_dm.updated = updated
-        if not existing_dm.document == document:
-            log.warn("Found DocumentMeta (id: %d)'s document_id (%d) doesn't "
-                     "match given Document's id (%d)",
-                     existing_dm.id, existing_dm.document_id, document.id)
+    # We will either have gotten an existing DocumentMeta from the DB in which
+    # case its fields may or may not match the values we want, or we will have
+    # created a new one in which case the fields will match. In any case it
+    # can't do any harm to just set the fields.
+    document_meta.value = value
+    document_meta.updated = updated
+
+    if not document_meta.document == document:
+        log.warn("Found DocumentMeta (id: %d)'s document_id (%d) doesn't "
+                 "match given Document's id (%d)",
+                 document_meta.id, document_meta.document_id, document.id)
 
 
 def merge_documents(session, documents, updated=datetime.now()):
