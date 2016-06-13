@@ -18,14 +18,14 @@ build/manifest.json: node_modules/.uptodate
 	$(NPM_BIN)/gulp build
 
 .PHONY: clean
-clean:
+clean: ## Clean up runtime artifacts (needed after a version update)
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 	rm -f node_modules/.uptodate h.egg-info/.uptodate
 	rm -rf build dist
 
 .PHONY: dev
-dev: build/manifest.json h.egg-info/.uptodate
+dev: build/manifest.json h.egg-info/.uptodate ## Run the development H server locally
 	@hypothesis devserver
 
 .PHONY: dist
@@ -38,11 +38,11 @@ dist/h-$(BUILD_ID): dist/h-$(BUILD_ID).tar.gz
 	tar -C dist -zxf $<
 
 .PHONY: docker
-docker: dist/h-$(BUILD_ID)
+docker: dist/h-$(BUILD_ID) ## Build hypothesis/hypothesis docker image
 	docker build -t hypothesis/hypothesis:$(DOCKER_TAG) $<
 
 .PHONY: test
-test: node_modules/.uptodate
+test: node_modules/.uptodate ## Run test suite
 	@pip install -q tox
 	tox
 	$(NPM_BIN)/gulp test-app
@@ -105,3 +105,8 @@ node_modules/.uptodate: package.json
 	@echo installing javascript dependencies
 	@$(NPM_BIN)/check-dependencies 2>/dev/null || npm install
 	@touch $@
+
+# Self documenting Makefile
+.PHONY: help
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
